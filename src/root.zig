@@ -192,8 +192,8 @@ test "RO append" {
 
     try t.insert(gpa, 5, ", world!");
 
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .ro, .start = 0, .len = 5 }, t.entries.items[0]);
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 0, .len = 8 }, t.entries.items[1]);
+    try expectEntry(.{ .buffer = .ro, .start = 0, .len = 5 }, t.entries.items[0]);
+    try expectEntry(.{ .buffer = .rw, .start = 0, .len = 8 }, t.entries.items[1]);
 
     try expectRender("Hello, world!", &t);
 }
@@ -206,8 +206,8 @@ test "RO prepend" {
 
     try t.insert(gpa, 0, "Hello, ");
 
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 0, .len = 7 }, t.entries.items[0]);
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .ro, .start = 0, .len = 6 }, t.entries.items[1]);
+    try expectEntry(.{ .buffer = .rw, .start = 0, .len = 7 }, t.entries.items[0]);
+    try expectEntry(.{ .buffer = .ro, .start = 0, .len = 6 }, t.entries.items[1]);
 
     try expectRender("Hello, world!", &t);
 }
@@ -220,9 +220,9 @@ test "RO insert" {
 
     try t.insert(gpa, 3, " quick");
 
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .ro, .start = 0, .len = 3 }, t.entries.items[0]);
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 0, .len = 6 }, t.entries.items[1]);
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .ro, .start = 3, .len = 13 }, t.entries.items[2]);
+    try expectEntry(.{ .buffer = .ro, .start = 0, .len = 3 }, t.entries.items[0]);
+    try expectEntry(.{ .buffer = .rw, .start = 0, .len = 6 }, t.entries.items[1]);
+    try expectEntry(.{ .buffer = .ro, .start = 3, .len = 13 }, t.entries.items[2]);
 
     try expectRender("The quick brown fox...", &t);
 }
@@ -236,8 +236,8 @@ test "RW insert" {
     try t.insert(gpa, 0, "world!");
     try t.insert(gpa, 0, "Hello, ");
 
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 6, .len = 7 }, t.entries.items[0]);
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 0, .len = 6 }, t.entries.items[1]);
+    try expectEntry(.{ .buffer = .rw, .start = 6, .len = 7 }, t.entries.items[0]);
+    try expectEntry(.{ .buffer = .rw, .start = 0, .len = 6 }, t.entries.items[1]);
 
     try expectRender("Hello, world!", &t);
 }
@@ -251,9 +251,9 @@ test "RW insert split" {
     try t.insert(gpa, 0, "The quick fox");
     try t.insert(gpa, 9, " brown");
 
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 0, .len = 9 }, t.entries.items[0]);
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 13, .len = 6 }, t.entries.items[1]);
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 9, .len = 4 }, t.entries.items[2]);
+    try expectEntry(.{ .buffer = .rw, .start = 0, .len = 9 }, t.entries.items[0]);
+    try expectEntry(.{ .buffer = .rw, .start = 13, .len = 6 }, t.entries.items[1]);
+    try expectEntry(.{ .buffer = .rw, .start = 9, .len = 4 }, t.entries.items[2]);
 
     try expectRender("The quick brown fox", &t);
 }
@@ -268,9 +268,9 @@ test "RW insert at boundary" {
     try t.insert(gpa, 3, "|");
     try t.insert(gpa, 4, "two");
 
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 0, .len = 3 }, t.entries.items[0]); // one
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 3, .len = 1 }, t.entries.items[1]); // |
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 4, .len = 3 }, t.entries.items[2]); // two
+    try expectEntry(.{ .buffer = .rw, .start = 0, .len = 3 }, t.entries.items[0]); // one
+    try expectEntry(.{ .buffer = .rw, .start = 3, .len = 1 }, t.entries.items[1]); // |
+    try expectEntry(.{ .buffer = .rw, .start = 4, .len = 3 }, t.entries.items[2]); // two
 
     try expectRender("one|two", &t);
 }
@@ -287,12 +287,12 @@ test "RW multiple inserts" {
     try t.insert(gpa, 3, "<>");
     try t.insert(gpa, 4, ".");
 
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 0, .len = 3 }, t.entries.items[0]); // one
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 7, .len = 1 }, t.entries.items[1]); // <
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 9, .len = 1 }, t.entries.items[2]); // .
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 8, .len = 1 }, t.entries.items[3]); // >
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 3, .len = 1 }, t.entries.items[4]); // |
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 4, .len = 3 }, t.entries.items[5]); // two
+    try expectEntry(.{ .buffer = .rw, .start = 0, .len = 3 }, t.entries.items[0]); // one
+    try expectEntry(.{ .buffer = .rw, .start = 7, .len = 1 }, t.entries.items[1]); // <
+    try expectEntry(.{ .buffer = .rw, .start = 9, .len = 1 }, t.entries.items[2]); // .
+    try expectEntry(.{ .buffer = .rw, .start = 8, .len = 1 }, t.entries.items[3]); // >
+    try expectEntry(.{ .buffer = .rw, .start = 3, .len = 1 }, t.entries.items[4]); // |
+    try expectEntry(.{ .buffer = .rw, .start = 4, .len = 3 }, t.entries.items[5]); // two
 
     try expectRender("one<.>|two", &t);
 }
@@ -301,4 +301,8 @@ fn expectRender(comptime expected: []const u8, t: *const PieceTable) !void {
     var buf: [expected.len]u8 = undefined;
     const result = try t.renderBuf(&buf);
     try testing.expectEqualStrings(expected, result);
+}
+
+fn expectEntry(comptime expected: PieceTable.Entry, actual: PieceTable.Entry) !void {
+    try testing.expectEqualDeep(expected, actual);
 }
