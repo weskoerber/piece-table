@@ -18,21 +18,21 @@ pub const PieceTable = struct {
 
         pub fn split(self: *Entry, pos: usize) Entry {
             const old_len = self.len;
-            self.len = pos - self.start;
+            self.len = pos;
 
             return .{
                 .buffer = self.buffer,
                 .start = self.start + self.len,
-                .len = old_len - self.len,
+                .len = old_len - pos,
             };
         }
 
         test split {
-            var entry: Entry = .{ .buffer = .ro, .start = 0, .len = 6 };
-            const new = entry.split(3);
+            var entry: Entry = .{ .buffer = .ro, .start = 0, .len = 10 };
+            const new = entry.split(4);
 
-            try expectEntry(.{ .buffer = .ro, .start = 0, .len = 3 }, entry);
-            try expectEntry(.{ .buffer = .ro, .start = 3, .len = 3 }, new);
+            try expectEntry(.{ .buffer = .ro, .start = 0, .len = 4 }, entry);
+            try expectEntry(.{ .buffer = .ro, .start = 4, .len = 6 }, new);
         }
     };
 
@@ -88,22 +88,15 @@ pub const PieceTable = struct {
                 //    to by the inserted text. In this case, this third entry
                 //    should start immediately after the end of the first entry.
 
-                // truncate the current entry up to the desired PTD insertion index.
-                const len = entry.len;
-                entry.len = idx_ptd - pos_ptd_start;
+                // Translate the PTD index to entry index. This is where we need to split the entry.
+                const entry_split_pos = idx_ptd - pos_ptd_start;
+                const next_entry = entry.split(entry_split_pos);
 
                 // Create an entry that refers to the text to insert.
                 const new_entry: Entry = .{
                     .buffer = .rw,
                     .start = rw_end,
                     .len = buf.len,
-                };
-
-                // The third entry that refers to the second half of the entry we're splitting.
-                const next_entry: Entry = .{
-                    .buffer = entry.buffer,
-                    .start = entry.start + entry.len,
-                    .len = len - entry.len,
                 };
 
                 // Append the text to the RW buffer and insert the entries.
@@ -151,6 +144,35 @@ pub const PieceTable = struct {
         }
     }
 
+    pub fn delete(self: *PieceTable, gpa: Allocator, idx_ptd: usize) !void {
+        // Perform possible list reallocation up front so that we can insert
+        // while iterating, maintaining stable pointers.
+        try self.entries.ensureUnusedCapacity(gpa, 1);
+
+        // Maintain PTD positions.
+        var pos_ptd_start: usize = 0;
+        var pos_ptd_end: usize = 0;
+
+        for (self.entries.items, 0..) |*entry, idx_tbl| {
+            pos_ptd_end = pos_ptd_start + entry.len - 1;
+            defer pos_ptd_start += entry.len;
+
+            if (idx_ptd > pos_ptd_start and idx_ptd < pos_ptd_end) {
+                const entry_split_pos = idx_ptd - pos_ptd_start;
+                const next_entry = entry.split(entry_split_pos + 1);
+                entry.len -= 1;
+                try self.entries.insert(gpa, idx_tbl + 1, next_entry);
+
+                break;
+            } else if (idx_ptd == pos_ptd_start) {
+                entry.start += 1;
+                entry.len -= 1;
+            } else if (idx_ptd == pos_ptd_end) {
+                entry.len -= 1;
+            }
+        }
+    }
+
     pub fn render(self: *const PieceTable, w: *Writer) !usize {
         var count: usize = 0;
         for (self.entries.items) |entry| {
@@ -176,6 +198,7 @@ pub const PieceTable = struct {
 
 comptime {
     _ = PieceTable;
+    _ = PieceTable.Entry;
 }
 
 test "no modifications" {
@@ -314,6 +337,49 @@ test "RW multiple inserts" {
     try expectEntry(.{ .buffer = .rw, .start = 4, .len = 3 }, t.entries.items[5]); // two
 
     try expectRender("one<.>|two", &t);
+}
+
+test "RO delete at start" {
+    const gpa = testing.allocator;
+
+    var t: PieceTable = try .init(gpa, "Hello");
+    defer t.deinit(gpa);
+
+    try expectEntry(.{ .buffer = .ro, .start = 0, .len = 5 }, t.entries.items[0]); // Hello
+
+    try t.delete(gpa, 0);
+
+    try expectEntry(.{ .buffer = .ro, .start = 1, .len = 4 }, t.entries.items[0]); // ello
+    try expectRender("ello", &t);
+}
+
+test "RO delete at end" {
+    const gpa = testing.allocator;
+
+    var t: PieceTable = try .init(gpa, "Hello");
+    defer t.deinit(gpa);
+
+    try expectEntry(.{ .buffer = .ro, .start = 0, .len = 5 }, t.entries.items[0]); // Hello
+
+    try t.delete(gpa, 4);
+
+    try expectEntry(.{ .buffer = .ro, .start = 0, .len = 4 }, t.entries.items[0]); // Hell
+    try expectRender("Hell", &t);
+}
+
+test "RO delete split" {
+    const gpa = testing.allocator;
+
+    var t: PieceTable = try .init(gpa, "abc123");
+    defer t.deinit(gpa);
+
+    try expectEntry(.{ .buffer = .ro, .start = 0, .len = 6 }, t.entries.items[0]); // abc123
+
+    try t.delete(gpa, 3);
+
+    try expectEntry(.{ .buffer = .ro, .start = 0, .len = 3 }, t.entries.items[0]); // abc
+    try expectEntry(.{ .buffer = .ro, .start = 4, .len = 2 }, t.entries.items[1]); // 23
+    try expectRender("abc23", &t);
 }
 
 fn expectRender(comptime expected: []const u8, t: *const PieceTable) !void {
