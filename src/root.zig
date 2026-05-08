@@ -17,24 +17,6 @@ pub const PieceTable = struct {
         pub const Buffer = enum { rw, ro };
     };
 
-    // const Iterator = struct {
-    //     entries: ArrayList(Entry),
-    //     index: usize,
-    //
-    //     pub fn next(self: *Iterator) ?*Entry {
-    //         if (self.index == self.entries.items.len) {
-    //             return null;
-    //         }
-    //
-    //         defer self.index += 1;
-    //         return &self.entries.items[self.index];
-    //     }
-    //
-    //     pub fn reset(self: *Iterator) void {
-    //         self.index = 0;
-    //     }
-    // };
-
     pub fn init(gpa: Allocator, buf: []const u8) !PieceTable {
         var entries: ArrayList(Entry) = try .initCapacity(gpa, 1);
 
@@ -122,13 +104,6 @@ pub const PieceTable = struct {
             .len = buf.len,
         });
     }
-
-    // pub fn iterate(self: *PieceTable) Iterator {
-    //     return .{
-    //         .entries = self.entries,
-    //         .index = 0,
-    //     };
-    // }
 
     pub fn render(self: *const PieceTable, w: *Writer) !usize {
         var count: usize = 0;
