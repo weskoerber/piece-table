@@ -15,6 +15,25 @@ pub const PieceTable = struct {
         len: usize,
 
         pub const Buffer = enum { rw, ro };
+
+        pub fn split(self: *Entry, pos: usize) Entry {
+            const old_len = self.len;
+            self.len = pos - self.start;
+
+            return .{
+                .buffer = self.buffer,
+                .start = self.start + self.len,
+                .len = old_len - self.len,
+            };
+        }
+
+        test split {
+            var entry: Entry = .{ .buffer = .ro, .start = 0, .len = 6 };
+            const new = entry.split(3);
+
+            try expectEntry(.{ .buffer = .ro, .start = 0, .len = 3 }, entry);
+            try expectEntry(.{ .buffer = .ro, .start = 3, .len = 3 }, new);
+        }
     };
 
     pub fn init(gpa: Allocator, buf: []const u8) !PieceTable {
