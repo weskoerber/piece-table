@@ -36,7 +36,9 @@ pub const PieceTable = struct {
         }
     };
 
-    pub fn init(gpa: Allocator, buf: []const u8) !PieceTable {
+    pub const InitError = error{} || Allocator.Error;
+
+    pub fn init(gpa: Allocator, buf: []const u8) InitError!PieceTable {
         var entries: ArrayList(Entry) = try .initCapacity(gpa, 1);
 
         if (buf.len > 0) {
@@ -205,7 +207,9 @@ pub const PieceTable = struct {
         }
     }
 
-    pub fn render(self: *const PieceTable, w: *Writer) !usize {
+    pub const RenderError = error{} || Writer.Error;
+
+    pub fn render(self: *const PieceTable, w: *Writer) RenderError!usize {
         var count: usize = 0;
         for (self.entries.items) |entry| {
             const buf = switch (entry.buffer) {
@@ -221,7 +225,7 @@ pub const PieceTable = struct {
         return count;
     }
 
-    pub fn renderBuf(self: *const PieceTable, buf: []u8) ![]const u8 {
+    pub fn renderBuf(self: *const PieceTable, buf: []u8) RenderError![]const u8 {
         var w: Writer = .fixed(buf);
         const count = try self.render(&w);
         return buf[0..count];
