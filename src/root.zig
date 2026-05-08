@@ -37,72 +37,99 @@ pub const PieceTable = struct {
         self.* = undefined;
     }
 
-    pub fn insert(self: *PieceTable, gpa: Allocator, index: usize, buf: []const u8) !void {
+    pub fn insert(self: *PieceTable, gpa: Allocator, idx_ptd: usize, buf: []const u8) !void {
+        // Perform possible list reallocation up front so that we can insert
+        // while iterating, maintaining stable pointers.
+        try self.entries.ensureUnusedCapacity(gpa, 2);
+
+        // This will be the starting index of the entry that refers to the inserted text.
         const rw_end = self.rw.items.len;
 
-        for (self.entries.items, 0..) |*entry, i| {
-            const end = entry.start + entry.len;
-            const len = entry.len;
+        // Maintain PTD positions.
+        var pos_ptd_start: usize = 0;
+        var pos_ptd_end: usize = 0;
 
-            if (index > entry.start and index < end) {
+        for (self.entries.items, 0..) |*entry, idx_tbl| {
+            pos_ptd_end = pos_ptd_start + entry.len;
+            defer pos_ptd_start += entry.len;
+
+            if (idx_ptd > pos_ptd_start and idx_ptd < pos_ptd_end) {
                 // In this case, we're trying to insert in the middle of an
                 // entry. To do that, we need to split the entry into three
                 // pieces:
-                // 1. The original entry. Set the length of this entry to 1
-                // index before the document insertion index.
-                // 2. A new entry containing a reference to the text to be
-                // inserted starting at the end of the previous entry, the
-                // document insertion index.
-                // 3. A new entry containing a reference to the second half of
-                // the split entry starting at the end of the newly inserted
-                // entry. Take note that the data referred to by this entry may
-                // not be the same buffer that's referred to by the inserted
-                // text. In this case, this third entry should start
-                // immediately after the end of the first entry.
-                entry.len = index - entry.start;
+                // 1. The original entry: Set the length of this entry to 1
+                //    index before the PTD insertion index.
+                // 2. New entry #1: A new entry containing a reference to the
+                //    text to be inserted starting at the end of the previous
+                //    entry, the PTD insertion index.
+                // 3. New entry #2: A new entry containing a reference to the
+                //    second half of the split entry starting at the end of the
+                //    newly inserted entry. Take note that the data referred to
+                //    by this entry may not be the same buffer that's referred
+                //    to by the inserted text. In this case, this third entry
+                //    should start immediately after the end of the first entry.
+
+                // truncate the current entry up to the desired PTD insertion index.
+                const len = entry.len;
+                entry.len = idx_ptd - pos_ptd_start;
+
+                // Create an entry that refers to the text to insert.
                 const new_entry: Entry = .{
                     .buffer = .rw,
                     .start = rw_end,
                     .len = buf.len,
                 };
 
+                // The third entry that refers to the second half of the entry we're splitting.
                 const next_entry: Entry = .{
                     .buffer = entry.buffer,
-                    .start = entry.len,
+                    .start = entry.start + entry.len,
                     .len = len - entry.len,
                 };
 
+                // Append the text to the RW buffer and insert the entries.
                 try self.rw.appendSlice(gpa, buf);
-                try self.entries.insertSlice(gpa, i + 1, &.{ new_entry, next_entry });
+                try self.entries.insertSlice(gpa, idx_tbl + 1, &.{ new_entry, next_entry });
 
-                return;
-            } else {
+                break;
+            } else if (idx_ptd == pos_ptd_start) {
+                // Insert a new block between two existing blocks, pushing the current block forward.
                 try self.rw.appendSlice(gpa, buf);
-                const entry_index = if (index == entry.start) i else i + 1;
-                try self.entries.insert(gpa, entry_index, .{
+                try self.entries.insert(gpa, idx_tbl, .{
                     .buffer = .rw,
                     .start = rw_end,
                     .len = buf.len,
                 });
 
-                return;
+                break;
+            } else if (idx_ptd == pos_ptd_end) {
+                // Insert a new block between two existing blocks, inserting after the current block.
+                try self.rw.appendSlice(gpa, buf);
+                try self.entries.insert(gpa, idx_tbl + 1, .{
+                    .buffer = .rw,
+                    .start = rw_end,
+                    .len = buf.len,
+                });
+
+                break;
+            } else {
+                // We didn't find the entry we were looking for. Continue to next iteration.
             }
-        }
+        } else {
+            // We didn't find any entry that corresponds to the PTD insertion index.
+            // Make sure we aren't out of bounds.
+            if (idx_ptd > pos_ptd_end) {
+                return error.OutOfBounds;
+            }
 
-        // If we get here, we haven't figured out where to insert the entry due to:
-        //   - no entries exist
-        //   - we're appending a new entry
-        // Either way, we're appending a new entry.
-        if (index != 0 and self.entries.items.len == 0) {
-            return error.OutOfBounds;
+            // Append a new block to the end.
+            try self.rw.appendSlice(gpa, buf);
+            try self.entries.append(gpa, .{
+                .buffer = .rw,
+                .start = rw_end,
+                .len = buf.len,
+            });
         }
-
-        try self.rw.appendSlice(gpa, buf);
-        try self.entries.append(gpa, .{
-            .buffer = .rw,
-            .start = rw_end,
-            .len = buf.len,
-        });
     }
 
     pub fn render(self: *const PieceTable, w: *Writer) !usize {
