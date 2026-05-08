@@ -56,7 +56,9 @@ pub const PieceTable = struct {
         self.* = undefined;
     }
 
-    pub fn insert(self: *PieceTable, gpa: Allocator, idx_ptd: usize, buf: []const u8) !void {
+    pub const InsertError = error{OutOfBounds} || Allocator.Error;
+
+    pub fn insert(self: *PieceTable, gpa: Allocator, idx_ptd: usize, buf: []const u8) InsertError!void {
         // Perform possible list reallocation up front so that we can insert
         // while iterating, maintaining stable pointers.
         try self.entries.ensureUnusedCapacity(gpa, 2);
@@ -131,7 +133,7 @@ pub const PieceTable = struct {
             // We didn't find any entry that corresponds to the PTD insertion index.
             // Make sure we aren't out of bounds.
             if (idx_ptd > pos_ptd_end) {
-                return error.OutOfBounds;
+                return InsertError.OutOfBounds;
             }
 
             // Append a new block to the end.
@@ -144,7 +146,9 @@ pub const PieceTable = struct {
         }
     }
 
-    pub fn delete(self: *PieceTable, gpa: Allocator, idx_ptd: usize) !void {
+    pub const DeleteError = error{OutOfBounds} || Allocator.Error;
+
+    pub fn delete(self: *PieceTable, gpa: Allocator, idx_ptd: usize) DeleteError!void {
         // Perform possible list reallocation up front so that we can insert
         // while iterating, maintaining stable pointers.
         try self.entries.ensureUnusedCapacity(gpa, 1);
@@ -197,7 +201,7 @@ pub const PieceTable = struct {
             }
         } else {
             // If we didn't find anything, we must be out of bounds.
-            return error.OutOfBounds;
+            return DeleteError.OutOfBounds;
         }
     }
 
