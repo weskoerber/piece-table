@@ -158,18 +158,46 @@ pub const PieceTable = struct {
             defer pos_ptd_start += entry.len;
 
             if (idx_ptd > pos_ptd_start and idx_ptd < pos_ptd_end) {
-                const entry_split_pos = idx_ptd - pos_ptd_start;
-                const next_entry = entry.split(entry_split_pos + 1);
+                // In this case, we're trying to delete a character in the
+                // middle of the entry. To do this, we need to split the entry
+                // into two pieces immediately after our PTD deletion index:
+                // 1. The first part of the original entry with the length
+                //    truncated to the difference of our PTD deletion index and
+                //    start, less one.
+                // 2. The second part of the original entry with the start set
+                //    to the translated PTD deletion index, and length the
+                //    remaining portion of the original block.
+
+                // Translated entry deletion index, bumped past the character to deleted.
+                const entry_split_pos = idx_ptd - pos_ptd_start + 1;
+                const next_entry = entry.split(entry_split_pos);
+
+                // Remove the character from the entry.
                 entry.len -= 1;
+
                 try self.entries.insert(gpa, idx_tbl + 1, next_entry);
 
                 break;
             } else if (idx_ptd == pos_ptd_start) {
+                // In this case the deletion index is at the start of the
+                // entry, so all we need to do is increment the start and
+                // correspondingly decrement the length.
                 entry.start += 1;
                 entry.len -= 1;
+
+                break;
             } else if (idx_ptd == pos_ptd_end) {
+                // In this case the deletion index is at the end of the block,
+                // so all we need to do is decrement the length.
                 entry.len -= 1;
+
+                break;
+            } else {
+                // We didn't find the entry we were looking for. Continue to next iteration.
             }
+        } else {
+            // If we didn't find anything, we must be out of bounds.
+            return error.OutOfBounds;
         }
     }
 
