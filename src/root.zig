@@ -138,6 +138,19 @@ test "no modifications" {
     var t: PieceTable = try .init(gpa, "Hello");
     defer t.deinit(gpa);
 
+    try testRender("Hello", &t);
+}
+
+test "inserting past end" {
+    const gpa = testing.allocator;
+
+    var t: PieceTable = try .init(gpa, &.{});
+    defer t.deinit(gpa);
+
+    try testing.expectError(error.OutOfBounds, t.insert(gpa, 1, "hi"));
+    try t.insert(gpa, 0, "Hello");
+    try testing.expectError(error.OutOfBounds, t.insert(gpa, 42, "oops"));
+
     const expected = "Hello";
     var buf: [expected.len]u8 = undefined;
     const result = try t.renderBuf(&buf);
@@ -155,10 +168,7 @@ test "RO append" {
     try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .ro, .start = 0, .len = 5 }, t.entries.items[0]);
     try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 0, .len = 8 }, t.entries.items[1]);
 
-    const expected = "Hello, world!";
-    var buf: [expected.len]u8 = undefined;
-    const result = try t.renderBuf(&buf);
-    try testing.expectEqualStrings(expected, result);
+    try testRender("Hello, world!", &t);
 }
 
 test "RO prepend" {
@@ -172,10 +182,7 @@ test "RO prepend" {
     try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 0, .len = 7 }, t.entries.items[0]);
     try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .ro, .start = 0, .len = 6 }, t.entries.items[1]);
 
-    const expected = "Hello, world!";
-    var buf: [expected.len]u8 = undefined;
-    const result = try t.renderBuf(&buf);
-    try testing.expectEqualStrings(expected, result);
+    try testRender("Hello, world!", &t);
 }
 
 test "RO insert" {
@@ -190,10 +197,7 @@ test "RO insert" {
     try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 0, .len = 6 }, t.entries.items[1]);
     try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .ro, .start = 3, .len = 13 }, t.entries.items[2]);
 
-    const expected = "The quick brown fox...";
-    var buf: [expected.len]u8 = undefined;
-    const result = try t.renderBuf(&buf);
-    try testing.expectEqualStrings(expected, result);
+    try testRender("The quick brown fox...", &t);
 }
 
 test "RW insert" {
@@ -202,18 +206,13 @@ test "RW insert" {
     var t: PieceTable = try .init(gpa, &.{});
     defer t.deinit(gpa);
 
-    try testing.expectError(error.OutOfBounds, t.insert(gpa, 1, "hi"));
-
     try t.insert(gpa, 0, "world!");
     try t.insert(gpa, 0, "Hello, ");
 
     try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 6, .len = 7 }, t.entries.items[0]);
     try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 0, .len = 6 }, t.entries.items[1]);
 
-    const expected = "Hello, world!";
-    var buf: [expected.len]u8 = undefined;
-    const result = try t.renderBuf(&buf);
-    try testing.expectEqualStrings(expected, result);
+    try testRender("Hello, world!", &t);
 }
 
 test "RW insert split" {
@@ -222,8 +221,6 @@ test "RW insert split" {
     var t: PieceTable = try .init(gpa, &.{});
     defer t.deinit(gpa);
 
-    try testing.expectError(error.OutOfBounds, t.insert(gpa, 1, "hi"));
-
     try t.insert(gpa, 0, "The quick fox");
     try t.insert(gpa, 9, " brown");
 
@@ -231,10 +228,7 @@ test "RW insert split" {
     try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 13, .len = 6 }, t.entries.items[1]);
     try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 9, .len = 4 }, t.entries.items[2]);
 
-    const expected = "The quick brown fox";
-    var buf: [expected.len]u8 = undefined;
-    const result = try t.renderBuf(&buf);
-    try testing.expectEqualStrings(expected, result);
+    try testRender("The quick brown fox", &t);
 }
 
 test "RW insert at boundary" {
@@ -243,17 +237,40 @@ test "RW insert at boundary" {
     var t: PieceTable = try .init(gpa, &.{});
     defer t.deinit(gpa);
 
-    try testing.expectError(error.OutOfBounds, t.insert(gpa, 1, "hi"));
-
     try t.insert(gpa, 0, "one");
     try t.insert(gpa, 3, "|");
     try t.insert(gpa, 4, "two");
 
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 0, .len = 3 }, t.entries.items[0]);
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 3, .len = 1 }, t.entries.items[1]);
-    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 4, .len = 3 }, t.entries.items[2]);
+    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 0, .len = 3 }, t.entries.items[0]); // one
+    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 3, .len = 1 }, t.entries.items[1]); // |
+    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 4, .len = 3 }, t.entries.items[2]); // two
 
-    const expected = "The quick brown fox";
+    try testRender("one|two", &t);
+}
+
+test "RW multiple inserts" {
+    const gpa = testing.allocator;
+
+    var t: PieceTable = try .init(gpa, &.{});
+    defer t.deinit(gpa);
+
+    try t.insert(gpa, 0, "one");
+    try t.insert(gpa, 3, "|");
+    try t.insert(gpa, 4, "two");
+    try t.insert(gpa, 3, "<>");
+    try t.insert(gpa, 4, ".");
+
+    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 0, .len = 3 }, t.entries.items[0]); // one
+    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 7, .len = 1 }, t.entries.items[1]); // <
+    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 9, .len = 1 }, t.entries.items[2]); // .
+    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 8, .len = 1 }, t.entries.items[3]); // >
+    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 3, .len = 1 }, t.entries.items[4]); // |
+    try testing.expectEqualDeep(PieceTable.Entry{ .buffer = .rw, .start = 4, .len = 3 }, t.entries.items[5]); // two
+
+    try testRender("one<.>|two", &t);
+}
+
+fn testRender(comptime expected: []const u8, t: *const PieceTable) !void {
     var buf: [expected.len]u8 = undefined;
     const result = try t.renderBuf(&buf);
     try testing.expectEqualStrings(expected, result);
