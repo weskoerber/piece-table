@@ -4,6 +4,8 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const test_filters = b.option([]const []const u8, "test-filters", "Test filter") orelse &.{};
+
     const mod = b.addModule("piece_table", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
@@ -36,6 +38,7 @@ pub fn build(b: *std.Build) void {
 
     const mod_tests = b.addTest(.{
         .root_module = mod,
+        .filters = test_filters,
     });
 
     const run_mod_tests = b.addRunArtifact(mod_tests);
