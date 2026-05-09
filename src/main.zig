@@ -27,10 +27,13 @@ pub fn main(init: std.process.Init) !void {
         else
             .{ length, line };
 
-        try table.insert(init.gpa, index, str);
+        table.insert(init.gpa, index, str) catch |err| switch (err) {
+            error.OutOfBounds => std.log.err("index {d} was out of bounds", .{index}),
+            else => |e| return e,
+        };
 
         try stdout.writeAll("* ");
-        length += try table.render(stdout);
+        length = try table.render(stdout);
         try stdout.writeAll("\n");
         try stdout.flush();
     }
