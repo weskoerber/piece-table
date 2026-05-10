@@ -4,18 +4,29 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Writer = std.Io.Writer;
 
+/// A piece table data structure.
 pub const PieceTable = struct {
+    /// The buffer containing the read-only data upon initialization.
     ro: []const u8,
+    /// The append-only buffer to which new data is added.
     rw: ArrayList(u8),
+    /// The list of entries on the table.
     entries: ArrayList(Entry),
 
     const Entry = struct {
+        /// The location of the data.
         buffer: Buffer,
+        /// The start index of the data in the buffer.
         start: usize,
+        /// The length of the entry.
         len: usize,
 
+        /// The location of the data (i.e. which buffer the data is located).
         pub const Buffer = enum { rw, ro };
 
+        /// Split a buffer into two pieces, where the current buffer
+        /// represending the first piece is modified, and the second piece is
+        /// returned.
         pub fn split(self: *Entry, pos: usize) Entry {
             const old_len = self.len;
             self.len = pos;
@@ -38,8 +49,12 @@ pub const PieceTable = struct {
 
     pub const InitError = error{} || Allocator.Error;
 
+    /// Initialize a new `PieceTable` with initial data, `buf`. This data is
+    /// not modified. If the length of `buf` is zero, this function does not
+    /// allocate any memory. If the length of `buf` is non-zero, a single table
+    /// entry is allocated, referring to the initial buffer.
     pub fn init(gpa: Allocator, buf: []const u8) InitError!PieceTable {
-        var entries: ArrayList(Entry) = try .initCapacity(gpa, 1);
+        var entries: ArrayList(Entry) = .empty;
 
         if (buf.len > 0) {
             try entries.append(gpa, .{ .buffer = .ro, .start = 0, .len = buf.len });
@@ -52,6 +67,8 @@ pub const PieceTable = struct {
         };
     }
 
+    /// Deinitialize a `PieceTable`, freeing any memory associated with table
+    /// insertions.
     pub fn deinit(self: *PieceTable, gpa: Allocator) void {
         self.rw.deinit(gpa);
         self.entries.deinit(gpa);
@@ -60,6 +77,7 @@ pub const PieceTable = struct {
 
     pub const InsertError = error{OutOfBounds} || Allocator.Error;
 
+    /// Appends the new data to the append-only buffer, and inserts the necessary table entries.
     pub fn insert(self: *PieceTable, gpa: Allocator, idx_ptd: usize, buf: []const u8) InsertError!void {
         // Perform possible list reallocation up front so that we can insert
         // while iterating, maintaining stable pointers.
@@ -150,6 +168,8 @@ pub const PieceTable = struct {
 
     pub const DeleteError = error{OutOfBounds} || Allocator.Error;
 
+    /// Deletes a single character from the table, inserting the necessary
+    /// table entries.
     pub fn delete(self: *PieceTable, gpa: Allocator, idx_ptd: usize) DeleteError!void {
         // Perform possible list reallocation up front so that we can insert
         // while iterating, maintaining stable pointers.
@@ -209,6 +229,7 @@ pub const PieceTable = struct {
 
     pub const RenderError = error{} || Writer.Error;
 
+    /// Writes data to the writer in the order specified by the table entries.
     pub fn render(self: *const PieceTable, w: *Writer) RenderError!usize {
         var count: usize = 0;
         for (self.entries.items) |entry| {
@@ -225,6 +246,7 @@ pub const PieceTable = struct {
         return count;
     }
 
+    /// Writes data to the buffer in the order specified by the table entries.
     pub fn renderBuf(self: *const PieceTable, buf: []u8) RenderError![]const u8 {
         var w: Writer = .fixed(buf);
         const count = try self.render(&w);
