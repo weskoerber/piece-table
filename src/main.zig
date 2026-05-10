@@ -1,3 +1,19 @@
+//! Piece table test program.
+//!
+//! Running this program will open and read stdin, reading input lines. Each
+//! input line is formatted as follows: `[index] string`, were the index is
+//! optional, and delimited from the string by a space.
+//!
+//! For example, to produce the string `Hello, world!` by inserting `world!`
+//! first, then `Hello, ` next, you would submit two lines:
+//!   1. `0 world!`
+//!   2. `0 Hello, `
+//!
+//! If the index is omitted, or is not a valid integer, the index assumes the
+//! end of the buffer. The above example is identical to:
+//!   1. `world!`
+//!   2. `Hello, `
+
 const std = @import("std");
 const PieceTable = @import("piece_table").PieceTable;
 
