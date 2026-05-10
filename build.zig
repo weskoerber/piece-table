@@ -4,6 +4,8 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const linkage = b.option(std.builtin.LinkMode, "linkage", "C library link mode") orelse .static;
+
     const test_filters = b.option([]const []const u8, "test-filters", "Test filter") orelse &.{};
 
     const mod = b.addModule("piece_table", .{
@@ -22,8 +24,28 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-
     b.installArtifact(exe);
+
+    const ffi = b.addLibrary(.{
+        .name = "piece_table",
+        .linkage = linkage,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .root_source_file = b.path("src/ffi/ffi.zig"),
+            .imports = &.{
+                .{ .name = "piece_table", .module = mod },
+            },
+        }),
+    });
+    b.installArtifact(ffi);
+    const ffi_header = b.path("src/ffi/ffi.h");
+
+    const ffi_step = b.step("ffi", "Build the C library");
+    const install_ffi = b.addInstallArtifact(ffi, .{});
+    const install_ffi_h = b.addInstallHeaderFile(ffi_header, "piece_table/piece_table.h");
+    ffi_step.dependOn(&install_ffi.step);
+    ffi_step.dependOn(&install_ffi_h.step);
 
     const run_step = b.step("run", "Run the app");
 
