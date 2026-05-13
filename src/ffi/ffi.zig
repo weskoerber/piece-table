@@ -27,6 +27,16 @@ pub export fn pt_deinit(pt: *PieceTableFfi) void {
     gpa.destroy(t);
 }
 
+pub export fn pt_append(pt: *PieceTableFfi, buffer: [*:0]const u8, buffer_len: usize) i32 {
+    var t: *PieceTable = @ptrCast(@alignCast(pt));
+
+    t.append(gpa, buffer[0..buffer_len]) catch |err| switch (err) {
+        PieceTable.AppendError.OutOfMemory => return 1,
+    };
+
+    return 0;
+}
+
 pub export fn pt_insert(pt: *PieceTableFfi, index: usize, buffer: [*:0]const u8, buffer_len: usize) i32 {
     var t: *PieceTable = @ptrCast(@alignCast(pt));
 
@@ -58,4 +68,10 @@ pub export fn pt_render(pt: *PieceTable, buffer: [*:0]u8, buffer_len: usize) i32
     };
 
     return 0;
+}
+
+pub export fn pt_length(pt: *PieceTable) usize {
+    var t: *const PieceTable = @ptrCast(@alignCast(pt));
+
+    return t.length();
 }

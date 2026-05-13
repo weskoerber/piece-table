@@ -4,11 +4,16 @@
 
 int main(void) {
   struct PieceTable *t;
-  pt_init(&t, "world!", 6);
+  pt_init(&t, "world", 5);
   pt_insert(t, 0, "Hello ", 6);
+  pt_append(t, "!", 1);
 
-  char buf[16] = {0};
+  size_t length = pt_length(t);
+
+  char *buf = (char *)malloc(length + 1);
+  buf[length] = 0;
+
   pt_render(t, buf, 16);
 
-  printf("%s\n", buf);
+  printf("%s (%d)\n", buf, length);
 }

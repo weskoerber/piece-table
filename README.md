@@ -4,9 +4,11 @@ A [piece table](https://en.wikipedia.org/wiki/Piece_table) implementation.
 
 ## Features
 
+- **Append**: Append a buffer to the end.
 - **Insert**: Insert a buffer at a given position.
 - **Delete**: Delete a character at a given position.
 - **Render**: Render the piece table into a writer or buffer.
+- **Length**: Retrieve the accumulated length of each element in the table.
 
 ## Overview
 

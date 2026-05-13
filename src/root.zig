@@ -75,6 +75,30 @@ pub const PieceTable = struct {
         self.* = undefined;
     }
 
+    pub const AppendError = error{} || Allocator.Error;
+
+    pub fn append(self: *PieceTable, gpa: Allocator, buf: []const u8) AppendError!void {
+        const rw_end = self.rw.items.len;
+
+        try self.rw.appendSlice(gpa, buf);
+        try self.entries.append(gpa, .{
+            .buffer = .rw,
+            .start = rw_end,
+            .len = buf.len,
+        });
+    }
+
+    test append {
+        const gpa = testing.allocator;
+
+        var t: PieceTable = try .init(gpa, "Hello");
+        defer t.deinit(gpa);
+
+        try t.append(gpa, ", world!");
+
+        try expectRender("Hello, world!", &t);
+    }
+
     pub const InsertError = error{OutOfBounds} || Allocator.Error;
 
     /// Appends the new data to the append-only buffer, and inserts the necessary table entries.
@@ -251,6 +275,26 @@ pub const PieceTable = struct {
         var w: Writer = .fixed(buf);
         const count = try self.render(&w);
         return buf[0..count];
+    }
+
+    pub fn length(self: *const PieceTable) usize {
+        var len: usize = 0;
+        for (self.entries.items) |entry| {
+            len += entry.len;
+        }
+
+        return len;
+    }
+
+    test length {
+        const gpa = testing.allocator;
+
+        var t: PieceTable = try .init(gpa, "world");
+        defer t.deinit(gpa);
+
+        try t.insert(gpa, 0, "Hello, ");
+
+        try testing.expectEqual(12, t.length());
     }
 };
 

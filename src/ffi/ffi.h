@@ -9,8 +9,10 @@ struct PieceTable;
 int pt_init(struct PieceTable **, const char *, size_t);
 void pt_deinit(struct PieceTable *);
 
+int pt_append(struct PieceTable *, const char *, size_t);
 int pt_insert(struct PieceTable *, size_t, const char *, size_t);
 int pt_delete(struct PieceTable *, size_t);
 int pt_render(struct PieceTable *, char *, size_t);
+size_t pt_length(struct PieceTable *);
 
 #endif // PIECE_TABLE_H
